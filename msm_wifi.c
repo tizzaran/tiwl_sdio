@@ -19,6 +19,29 @@
  */
 #include <linux/platform_device.h>
 #include <linux/wifi_tiwlan.h>
+#include <linux/err.h>
+#include <linux/spi/wl12xx.h>
+#include <linux/slab.h>
+
+static struct wifi_platform_data *wifi_control;
+
+static void set_power(bool enabled) {
+	if (wifi_control)
+		wifi_control->set_power(enabled ? 1 : 0);
+}
+
+static struct wl12xx_platform_data platform_data = {
+	.set_power = set_power,
+};
+
+struct wl12xx_platform_data *wl12xx_get_platform_data(void)
+{
+	if (!wifi_control)
+		return ERR_PTR(-ENODEV);
+
+	return &platform_data;
+}
+EXPORT_SYMBOL(wl12xx_get_platform_data);
 
 static int wifi_probe(struct platform_device *pdev)
 {
@@ -26,9 +49,14 @@ static int wifi_probe(struct platform_device *pdev)
 		(struct wifi_platform_data *)(pdev->dev.platform_data);
 
 	printk(KERN_DEBUG "wifi probe start\n");
-
 	if (!wifi_ctrl)
 		return -ENODEV;
+	if (wifi_control)
+		return -EBUSY;
+
+	wifi_control = kmemdup(wifi_ctrl, sizeof(*wifi_ctrl), GFP_KERNEL);
+	if (!wifi_control)
+		return -ENOMEM;
 
 	if (wifi_ctrl->set_power)
 		wifi_ctrl->set_power(1);	/* Power On */
@@ -49,6 +77,9 @@ static int wifi_remove(struct platform_device *pdev)
 	printk(KERN_DEBUG "wifi remove start\n");
 	if (!wifi_ctrl)
 		return -ENODEV;
+
+	kfree(wifi_control);
+	wifi_control = 0;
 
 	if (wifi_ctrl->set_carddetect)
 		wifi_ctrl->set_carddetect(0);	/* CardDetect (1->0) */
