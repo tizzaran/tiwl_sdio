@@ -6,7 +6,7 @@ tiwl_sdio-y := msm_wifi.o
 else
 
 KDIR := /lib/modules/`uname -r`/build
-modules:
+modules clean:
 	@$(MAKE) -C $(KDIR) M=`pwd` $@
 
 endif
